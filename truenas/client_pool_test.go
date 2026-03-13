@@ -275,9 +275,9 @@ func TestPoolClient_ErrorHandling(t *testing.T) {
 	_, err := client.Pool.List(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Internal server error", apiErr.Message)
 }
 
@@ -451,9 +451,9 @@ func TestPoolClient_GetScrubTask_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, task)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Internal server error", apiErr.Message)
 }
 
@@ -540,9 +540,9 @@ func TestPoolClient_GetScrubTasksByPool_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, tasks)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Pool not found", apiErr.Message)
 }
 
@@ -628,9 +628,9 @@ func TestPoolClient_UpdateScrubTask_Error(t *testing.T) {
 	require.NotNil(t, task)
 	assert.Equal(t, 0, task.ID) // Zero-valued struct on error
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Scrub task not found", apiErr.Message)
 }
 
@@ -663,9 +663,9 @@ func TestPoolClient_DeleteScrubTask_Error(t *testing.T) {
 	err := client.Pool.DeleteScrubTask(ctx, 999)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Scrub task not found", apiErr.Message)
 }
 
@@ -691,7 +691,7 @@ func TestPoolClient_DeleteScrubTask_MultipleCalls(t *testing.T) {
 	// Second deletion should fail
 	err = client.Pool.DeleteScrubTask(ctx, 1)
 	require.Error(t, err)
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 }

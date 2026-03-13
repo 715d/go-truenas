@@ -114,7 +114,7 @@ type ConnectionInfo struct {
 // GetConnectionInfo returns the connection information needed to create a TrueNAS client
 func (m *Manager) GetConnectionInfo() ConnectionInfo {
 	return ConnectionInfo{
-		WebSocketURL: fmt.Sprintf("ws://localhost:%d/websocket", m.config.WebPort),
+		WebSocketURL: fmt.Sprintf("ws://localhost:%d/api/current", m.config.WebPort),
 		Username:     m.config.Username,
 		Password:     m.config.Password,
 	}

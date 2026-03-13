@@ -20,7 +20,7 @@ func TestNewClient_Success(t *testing.T) {
 	ts := NewTestServer(t)
 	defer ts.Close()
 
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -37,7 +37,7 @@ func TestNewClient_AuthFailure(t *testing.T) {
 	ts := NewTestServer(t, WithAuthSuccess(false))
 	defer ts.Close()
 
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "baduser",
@@ -60,34 +60,37 @@ func TestNewClient_InvalidURL(t *testing.T) {
 	assert.Nil(t, client)
 }
 
-func TestErrorMsg_Error(t *testing.T) {
+func TestRPCError_Error(t *testing.T) {
 	t.Parallel()
-	err := &ErrorMsg{
-		Code:    500,
+	err := &RPCError{
+		Code:    -32001,
 		Message: "Internal server error",
+		Data:    &RPCErrorData{Error: 500, Reason: "Internal server error"},
 	}
 
-	assert.Equal(t, "TrueNAS API error (code: 500, message: Internal server error)", err.Error())
+	assert.Contains(t, err.Error(), "code: -32001")
+	assert.Contains(t, err.Error(), "message: Internal server error")
 }
 
-func TestMessage_JSON(t *testing.T) {
+func TestRequest_JSON(t *testing.T) {
 	t.Parallel()
-	msg := &Message{
-		ID:     "123",
-		Method: "system.info",
-		Params: []any{"param1", "param2"},
+	req := &Request{
+		JSONRPC: "2.0",
+		ID:      123,
+		Method:  "system.info",
+		Params:  []any{"param1", "param2"},
 	}
 
-	data, err := json.Marshal(msg)
+	data, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	var decoded Message
+	var decoded Request
 	err = json.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 
-	assert.Equal(t, msg.ID, decoded.ID)
-	assert.Equal(t, msg.Method, decoded.Method)
-	assert.Equal(t, len(msg.Params), len(decoded.Params))
+	assert.Equal(t, req.ID, decoded.ID)
+	assert.Equal(t, req.Method, decoded.Method)
+	assert.Equal(t, len(req.Params), len(decoded.Params))
 }
 
 func TestReconnection_CloseDetection(t *testing.T) {
@@ -95,7 +98,7 @@ func TestReconnection_CloseDetection(t *testing.T) {
 	ts := NewTestServer(t)
 	defer ts.Close()
 
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -122,7 +125,7 @@ func TestReconnection_FailedConnection(t *testing.T) {
 	t.Parallel()
 	// Test reconnection behavior when server becomes unavailable
 	ts := NewTestServer(t)
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -163,7 +166,7 @@ func TestReconnection_ConnectionDropHandling(t *testing.T) {
 	t.Parallel()
 	// Test that connection drops are detected and don't cause hangs
 	ts := NewTestServer(t)
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -197,7 +200,7 @@ func TestReconnection_CallAfterServerDown(t *testing.T) {
 	t.Parallel()
 	// Test that calls fail gracefully when server is down
 	ts := NewTestServer(t)
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -233,7 +236,7 @@ func TestReconnection_ReconnectAttempts(t *testing.T) {
 	t.Parallel()
 	// Test that client attempts to reconnect when connection is lost
 	ts := NewTestServer(t)
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -288,7 +291,7 @@ func TestNewClient_ConnectionFailures(t *testing.T) {
 		},
 		{
 			name:        "connection_refused",
-			url:         "ws://localhost:99999/websocket",
+			url:         "ws://localhost:99999/api/current",
 			expectError: "websocket dial",
 		},
 		{
@@ -314,24 +317,23 @@ func TestNewClient_ConnectionFailures(t *testing.T) {
 
 func TestNewClient_AuthenticationFailurePaths(t *testing.T) {
 	t.Parallel()
-	ts := NewTestServer(t, WithCustomHandler(func(msg Message) (Message, bool) {
-		response := Message{ID: msg.ID}
-		switch msg.Method {
+	ts := NewTestServer(t, WithCustomHandler(func(req Request) (Response, bool) {
+		response := Response{JSONRPC: "2.0", ID: &req.ID}
+		switch req.Method {
 		case "auth.login", "auth.login_with_api_key":
-			response.Error = &ErrorMsg{
-				Code:    401,
+			response.Error = &RPCError{
+				Code:    -32001,
 				Message: "Authentication failed",
-				Reason:  "Invalid credentials",
-				Type:    "UNAUTHORIZED",
+				Data:    &RPCErrorData{Error: 401, Reason: "Invalid credentials", ErrName: "UNAUTHORIZED"},
 			}
 		default:
-			response.Error = &ErrorMsg{Code: 404, Message: "Method not found"}
+			response.Error = &RPCError{Code: -32601, Message: "Method not found"}
 		}
 		return response, true
 	}))
 	defer ts.Close()
 
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	tests := []struct {
 		name    string
@@ -365,19 +367,19 @@ func TestNewClient_AuthenticationFailurePaths(t *testing.T) {
 func TestNewClient_AuthenticationFalseResponse(t *testing.T) {
 	t.Parallel()
 	// Test auth unsuccessful scenario (returns false instead of error)
-	ts := NewTestServer(t, WithCustomHandler(func(msg Message) (Message, bool) {
-		response := Message{ID: msg.ID}
-		switch msg.Method {
+	ts := NewTestServer(t, WithCustomHandler(func(req Request) (Response, bool) {
+		response := Response{JSONRPC: "2.0", ID: &req.ID}
+		switch req.Method {
 		case "auth.login", "auth.login_with_api_key":
 			response.Result = json.RawMessage(`false`) // Return false instead of error
 		default:
-			response.Error = &ErrorMsg{Code: 404, Message: "Method not found"}
+			response.Error = &RPCError{Code: -32601, Message: "Method not found"}
 		}
 		return response, true
 	}))
 	defer ts.Close()
 
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -394,7 +396,7 @@ func TestNewClient_NoCredentials(t *testing.T) {
 	ts := NewTestServer(t)
 	defer ts.Close()
 
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	// Should succeed without credentials
 	client, err := NewClient(wsURL, Options{})
@@ -405,29 +407,28 @@ func TestNewClient_NoCredentials(t *testing.T) {
 
 func TestClient_CallErrorPaths(t *testing.T) {
 	t.Parallel()
-	ts := NewTestServer(t, WithCustomHandler(func(msg Message) (Message, bool) {
-		response := Message{ID: msg.ID}
-		switch msg.Method {
+	ts := NewTestServer(t, WithCustomHandler(func(req Request) (Response, bool) {
+		response := Response{JSONRPC: "2.0", ID: &req.ID}
+		switch req.Method {
 		case "auth.login", "auth.login_with_api_key":
 			response.Result = json.RawMessage(`true`)
 		case "test.error":
-			response.Error = &ErrorMsg{
-				Code:    500,
+			response.Error = &RPCError{
+				Code:    -32001,
 				Message: "Internal server error",
-				Reason:  "Database connection failed",
-				Type:    "INTERNAL_ERROR",
+				Data:    &RPCErrorData{Error: 500, Reason: "Database connection failed", ErrName: "INTERNAL_ERROR"},
 			}
 		case "test.timeout":
-			// Don't send response to simulate timeout
+			// Don't send response to simulate timeout.
 			return response, false
 		default:
-			response.Error = &ErrorMsg{Code: 404, Message: "Method not found"}
+			response.Error = &RPCError{Code: -32601, Message: "Method not found"}
 		}
 		return response, true
 	}))
 	defer ts.Close()
 
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 	client, err := NewClient(wsURL, Options{Username: "test", Password: "test"})
 	require.NoError(t, err)
 	defer client.Close()
@@ -437,13 +438,13 @@ func TestClient_CallErrorPaths(t *testing.T) {
 		err := client.Call(context.Background(), "test.error", nil, &result)
 		assert.Error(t, err)
 
-		errorMsg, ok := err.(*ErrorMsg)
+		rpcErr, ok := err.(*RPCError)
 		assert.True(t, ok)
-		assert.Equal(t, 500, errorMsg.Code)
-		assert.Contains(t, errorMsg.Error(), "code: 500")
-		assert.Contains(t, errorMsg.Error(), "Internal server error")
-		assert.Contains(t, errorMsg.Error(), "Database connection failed")
-		assert.Contains(t, errorMsg.Error(), "INTERNAL_ERROR")
+		assert.Equal(t, -32001, rpcErr.Code)
+		assert.Contains(t, rpcErr.Error(), "code: -32001")
+		assert.Contains(t, rpcErr.Error(), "Internal server error")
+		assert.Contains(t, rpcErr.Error(), "Database connection failed")
+		assert.Contains(t, rpcErr.Error(), "INTERNAL_ERROR")
 	})
 
 	t.Run("context_timeout", func(t *testing.T) {
@@ -516,8 +517,8 @@ func TestClient_MessageUnmarshalErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := &Message{Result: tt.result}
-			err := msg.Unmarshal(tt.target)
+			resp := &Response{Result: tt.result}
+			err := resp.Unmarshal(tt.target)
 
 			if tt.hasError {
 				assert.Error(t, err)
@@ -529,40 +530,39 @@ func TestClient_MessageUnmarshalErrors(t *testing.T) {
 	}
 }
 
-func TestErrorMsg_ErrorFormatting(t *testing.T) {
+func TestRPCError_ErrorFormatting(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
-		errorMsg *ErrorMsg
+		rpcError *RPCError
 		contains []string
 	}{
 		{
 			name:     "empty_error",
-			errorMsg: &ErrorMsg{},
+			rpcError: &RPCError{},
 			contains: []string{"TrueNAS API error"},
 		},
 		{
 			name: "code_only",
-			errorMsg: &ErrorMsg{
-				Code: 404,
+			rpcError: &RPCError{
+				Code: -32601,
 			},
-			contains: []string{"code: 404"},
+			contains: []string{"code: -32601"},
 		},
 		{
 			name: "all_fields",
-			errorMsg: &ErrorMsg{
-				Code:    500,
+			rpcError: &RPCError{
+				Code:    -32001,
 				Message: "Server error",
-				Reason:  "Database failure",
-				Type:    "INTERNAL",
+				Data:    &RPCErrorData{Error: 500, Reason: "Database failure", ErrName: "INTERNAL"},
 			},
-			contains: []string{"code: 500", "message: Server error", "reason: Database failure", "type: INTERNAL"},
+			contains: []string{"code: -32001", "message: Server error", "reason: Database failure", "errname: INTERNAL"},
 		},
 		{
 			name: "message_and_reason_only",
-			errorMsg: &ErrorMsg{
+			rpcError: &RPCError{
 				Message: "Custom error",
-				Reason:  "User action required",
+				Data:    &RPCErrorData{Reason: "User action required"},
 			},
 			contains: []string{"message: Custom error", "reason: User action required"},
 		},
@@ -570,7 +570,7 @@ func TestErrorMsg_ErrorFormatting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errorStr := tt.errorMsg.Error()
+			errorStr := tt.rpcError.Error()
 			for _, expected := range tt.contains {
 				assert.Contains(t, errorStr, expected)
 			}
@@ -585,7 +585,7 @@ func TestClient_ConnectionManagerAndReconnection(t *testing.T) {
 		"hostname": "test-truenas",
 		"version":  "TrueNAS-SCALE-23.10.2",
 	})
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -622,54 +622,15 @@ func TestClient_ConnectionManagerAndReconnection(t *testing.T) {
 	assert.Less(t, duration, 2*time.Second, "Close should complete quickly")
 }
 
-func TestClient_ConnectionHandshakeFailures(t *testing.T) {
-	t.Parallel()
-	// Server that sends invalid handshake response
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-
-		// Read the connect message
-		var connectMsg map[string]any
-		_ = conn.ReadJSON(&connectMsg)
-
-		// Send invalid response (not "connected")
-		_ = conn.WriteJSON(map[string]any{
-			"msg":     "failed",
-			"session": "",
-		})
-	}))
-	defer server.Close()
-
-	wsURL := strings.Replace(server.URL, "http://", "ws://", 1) + "/websocket"
-
-	client, err := NewClient(wsURL, Options{
-		Username: "testuser",
-		Password: "testpass",
-	})
-
-	assert.Error(t, err)
-	assert.Nil(t, client)
-	assert.Contains(t, err.Error(), "connection failed")
-}
-
 func TestClient_ConnectionWriteFailure(t *testing.T) {
 	t.Parallel()
-	// Server that immediately closes connection after upgrade
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-		// Close immediately to cause write failure
-		conn.Close()
+	// Server that rejects WebSocket upgrade to cause connection failure
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
 	}))
 	defer server.Close()
 
-	wsURL := strings.Replace(server.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(server.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -678,73 +639,6 @@ func TestClient_ConnectionWriteFailure(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, client)
-	// Can fail either at write (send connect request) or read (read connection response)
-	assert.True(t, strings.Contains(err.Error(), "send connect request") || strings.Contains(err.Error(), "read connection response"),
-		"Error should contain either 'send connect request' or 'read connection response', got: %s", err.Error())
-}
-
-func TestClient_ConnectionReadFailure(t *testing.T) {
-	t.Parallel()
-	// Server that sends connect message but then closes before sending response
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-
-		// Read the connect message but don't respond
-		var connectMsg map[string]any
-		_ = conn.ReadJSON(&connectMsg)
-
-		// Close connection to cause read failure
-	}))
-	defer server.Close()
-
-	wsURL := strings.Replace(server.URL, "http://", "ws://", 1) + "/websocket"
-
-	client, err := NewClient(wsURL, Options{
-		Username: "testuser",
-		Password: "testpass",
-	})
-
-	assert.Error(t, err)
-	assert.Nil(t, client)
-	assert.Contains(t, err.Error(), "read connection response")
-}
-
-func TestClient_ConnectionHandshakeNoSession(t *testing.T) {
-	t.Parallel()
-	// Server that sends connected but no session
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-
-		// Read the connect message
-		var connectMsg map[string]any
-		_ = conn.ReadJSON(&connectMsg)
-
-		// Send connected but no session
-		_ = conn.WriteJSON(map[string]any{
-			"msg":     "connected",
-			"session": "",
-		})
-	}))
-	defer server.Close()
-
-	wsURL := strings.Replace(server.URL, "http://", "ws://", 1) + "/websocket"
-
-	client, err := NewClient(wsURL, Options{
-		Username: "testuser",
-		Password: "testpass",
-	})
-
-	assert.Error(t, err)
-	assert.Nil(t, client)
-	assert.Contains(t, err.Error(), "did not receive a session")
 }
 
 func TestClient_ReadLoopErrorHandling(t *testing.T) {
@@ -766,20 +660,13 @@ func TestClient_ReadLoopErrorHandling(t *testing.T) {
 		}
 		defer conn.Close()
 
-		// Handle initial handshake
-		var connectMsg map[string]any
-		_ = conn.ReadJSON(&connectMsg)
-		_ = conn.WriteJSON(map[string]any{
-			"msg":     "connected",
-			"session": "test-session",
-		})
-
 		// Wait for auth message and respond
-		var authMsg Message
-		_ = conn.ReadJSON(&authMsg)
-		_ = conn.WriteJSON(Message{
-			ID:     authMsg.ID,
-			Result: json.RawMessage(`true`),
+		var authReq Request
+		_ = conn.ReadJSON(&authReq)
+		_ = conn.WriteJSON(Response{
+			JSONRPC: "2.0",
+			ID:      &authReq.ID,
+			Result:  json.RawMessage(`true`),
 		})
 
 		// Send malformed JSON to trigger read error
@@ -793,7 +680,7 @@ func TestClient_ReadLoopErrorHandling(t *testing.T) {
 	}))
 	defer server.Close()
 
-	wsURL := strings.Replace(server.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(server.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL, Options{
 		Username: "testuser",
@@ -819,9 +706,9 @@ func TestClient_ReadLoopErrorHandling(t *testing.T) {
 
 func TestClient_CallJobErrorHandling(t *testing.T) {
 	t.Parallel()
-	ts := NewTestServer(t, WithCustomHandler(func(msg Message) (Message, bool) {
-		response := Message{ID: msg.ID}
-		switch msg.Method {
+	ts := NewTestServer(t, WithCustomHandler(func(req Request) (Response, bool) {
+		response := Response{JSONRPC: "2.0", ID: &req.ID}
+		switch req.Method {
 		case "auth.login":
 			response.Result = json.RawMessage(`true`)
 		case "test.job.failure":
@@ -829,7 +716,7 @@ func TestClient_CallJobErrorHandling(t *testing.T) {
 		case "test.job.marshal_error":
 			response.Result = json.RawMessage(`456`) // Return job ID
 		case "core.get_jobs":
-			params := msg.Params
+			params := req.Params
 			var jobID float64
 
 			// Parse the filter parameters to extract the job ID
@@ -873,13 +760,13 @@ func TestClient_CallJobErrorHandling(t *testing.T) {
 				response.Result = json.RawMessage(`[]`)
 			}
 		default:
-			response.Error = &ErrorMsg{Code: 404, Message: "Method not found"}
+			response.Error = &RPCError{Code: -32601, Message: "Method not found"}
 		}
 		return response, true
 	}))
 	defer ts.Close()
 
-	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL := strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 	client, err := NewClient(wsURL, Options{Username: "test", Password: "test"})
 	require.NoError(t, err)
 	defer client.Close()
@@ -965,7 +852,7 @@ func TestClient_ReconnectCoverage(t *testing.T) {
 	t.Parallel()
 	// Test the reconnect function by creating a scenario where it's called
 	server1 := NewTestServer(t)
-	wsURL1 := strings.Replace(server1.URL, "http://", "ws://", 1) + "/websocket"
+	wsURL1 := strings.Replace(server1.URL, "http://", "ws://", 1) + "/api/current"
 
 	client, err := NewClient(wsURL1, Options{
 		Username: "testuser",
@@ -990,7 +877,7 @@ func TestClient_ReconnectCoverage(t *testing.T) {
 	server1.Close()
 
 	// Update client URL to point to a non-existent server (with proper synchronization)
-	badURL := "ws://localhost:99999/websocket"
+	badURL := "ws://localhost:99999/api/current"
 	client.mu.Lock()
 	client.url = badURL
 	client.mu.Unlock()

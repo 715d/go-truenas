@@ -22,6 +22,7 @@ type Options struct {
 	APIKey              string
 	Debug               bool
 	DefaultWriteTimeout time.Duration
+	NotificationHandler func(method string, params json.RawMessage)
 }
 
 type Client struct {
@@ -57,8 +58,8 @@ type Client struct {
 	opts        Options
 	mu          sync.RWMutex
 	msgID       atomic.Int64
-	pending     *xsync.MapOf[string, chan Message]
-	writeChan   chan *Message
+	pending     *xsync.MapOf[int64, chan Response]
+	writeChan   chan *Request
 	errCh       chan error
 	reconnectCh chan struct{}
 	doneCh      chan struct{} // Signal when client should shut down
@@ -72,7 +73,7 @@ func NewClient(endpoint string, opts Options) (*Client, error) {
 	c := &Client{
 		url:         endpoint,
 		opts:        opts,
-		pending:     xsync.NewMapOf[string, chan Message](),
+		pending:     xsync.NewMapOf[int64, chan Response](),
 		errCh:       make(chan error, 1),
 		reconnectCh: make(chan struct{}, 1),
 		doneCh:      make(chan struct{}),
@@ -127,8 +128,8 @@ func (c *Client) Close() error {
 		return nil // Already closed
 	}
 
-	// Cancel all pending requests by closing their channels
-	c.pending.Range(func(id string, ch chan Message) bool {
+	// Cancel all pending requests by closing their channels.
+	c.pending.Range(func(id int64, ch chan Response) bool {
 		close(ch)
 		c.pending.Delete(id)
 		return true
@@ -157,7 +158,7 @@ func (c *Client) Close() error {
 // If v is not nil, the result will be unmarshaled into it.
 // Prefer to use the type-safe API clients for normal operations.
 func (c *Client) Call(ctx context.Context, method string, params []any, v any) error {
-	msgID := fmt.Sprintf("%d", c.msgID.Add(1))
+	msgID := c.msgID.Add(1)
 	if _, ok := ctx.Deadline(); !ok {
 		// Context doesn't have a timeout, apply the default.
 		var cancel context.CancelFunc
@@ -165,13 +166,13 @@ func (c *Client) Call(ctx context.Context, method string, params []any, v any) e
 		defer cancel()
 	}
 
-	msg := &Message{
-		ID:     msgID,
-		Msg:    "method",
-		Method: method,
-		Params: params,
+	req := &Request{
+		JSONRPC: "2.0",
+		ID:      msgID,
+		Method:  method,
+		Params:  params,
 	}
-	resultCh := make(chan Message, 1)
+	resultCh := make(chan Response, 1)
 
 	c.pending.Store(msgID, resultCh)
 	defer func() {
@@ -189,8 +190,8 @@ func (c *Client) Call(ctx context.Context, method string, params []any, v any) e
 	}
 
 	select {
-	case c.writeChan <- msg:
-		// Message queued successfully
+	case c.writeChan <- req:
+		// Request queued successfully.
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -200,7 +201,7 @@ func (c *Client) Call(ctx context.Context, method string, params []any, v any) e
 		return err
 	case result, ok := <-resultCh:
 		if !ok {
-			// Channel was closed, client is shutting down
+			// Channel was closed, client is shutting down.
 			return fmt.Errorf("client closed")
 		}
 		if result.Error != nil {
@@ -267,40 +268,8 @@ func (c *Client) connect() error {
 		return fmt.Errorf("websocket dial: %s: %w", u.String(), err)
 	}
 
-	msg := map[string]any{
-		"msg":     "connect",
-		"version": "1",
-		"support": []string{"1"},
-	}
-	if c.opts.Debug {
-		fmt.Printf("send: %s\n", tryMarshal(msg))
-	}
-	if err := conn.WriteJSON(msg); err != nil {
-		conn.Close()
-		return fmt.Errorf("send connect request: %w", err)
-	}
-
-	var resp struct {
-		Msg     string `json:"msg"`
-		Session string `json:"session"`
-	}
-	if err := conn.ReadJSON(&resp); err != nil {
-		conn.Close()
-		return fmt.Errorf("read connection response: %w", err)
-	}
-	if c.opts.Debug {
-		fmt.Printf("recv: %s\n", tryMarshal(resp))
-	}
-	if !strings.EqualFold(resp.Msg, "connected") {
-		conn.Close()
-		return fmt.Errorf("connection failed: %s", resp.Msg)
-	}
-	if resp.Session == "" {
-		conn.Close()
-		return fmt.Errorf("connected but did not receive a session")
-	}
 	c.conn = conn
-	c.writeChan = make(chan *Message, 256)
+	c.writeChan = make(chan *Request, 256)
 	c.closed.Store(false)
 	return nil
 }
@@ -414,12 +383,12 @@ func (c *Client) readLoop(conn *websocket.Conn) {
 	}
 
 	for !c.closed.Load() {
-		var msg Message
-		if err := conn.ReadJSON(&msg); err != nil {
+		var resp Response
+		if err := conn.ReadJSON(&resp); err != nil {
 			if c.closed.Load() {
 				return
 			}
-			// Check for connection errors that should trigger reconnection
+			// Check for connection errors that should trigger reconnection.
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) ||
 				websocket.IsUnexpectedCloseError(err) ||
 				strings.Contains(err.Error(), "connection reset") ||
@@ -430,11 +399,8 @@ func (c *Client) readLoop(conn *websocket.Conn) {
 				}
 				select {
 				case c.reconnectCh <- struct{}{}:
-					// Successfully signaled reconnection
 				case <-c.doneCh:
-					// Client is shutting down
 				default:
-					// Channel is full, ignore
 				}
 				return
 			}
@@ -448,18 +414,26 @@ func (c *Client) readLoop(conn *websocket.Conn) {
 			continue
 		}
 		if c.opts.Debug {
-			fmt.Printf("recv: %s\n", tryMarshal(msg))
+			fmt.Printf("recv: %s\n", tryMarshal(resp))
 		}
 
-		if msg.ID != "" {
-			if ch, exists := c.pending.Load(msg.ID); exists {
-				ch <- msg
+		if resp.ID != nil {
+			// Response to a pending request.
+			if ch, exists := c.pending.Load(*resp.ID); exists {
+				ch <- resp
+			}
+		} else if resp.Method != "" {
+			// Server notification (no ID).
+			if c.opts.NotificationHandler != nil {
+				c.opts.NotificationHandler(resp.Method, resp.Params)
+			} else if c.opts.Debug {
+				fmt.Printf("unhandled notification: %s\n", resp.Method)
 			}
 		}
 	}
 }
 
-func (c *Client) writeLoop(conn *websocket.Conn, messages <-chan *Message) {
+func (c *Client) writeLoop(conn *websocket.Conn, messages <-chan *Request) {
 	defer c.wg.Done()
 	defer func() {
 		if c.opts.Debug {
@@ -517,42 +491,72 @@ func value[T any](v *T) T {
 	return *v
 }
 
-type Message struct {
-	ID     string          `json:"id,omitempty"`
-	Msg    string          `json:"msg,omitempty"`
-	Method string          `json:"method,omitempty"`
-	Params []any           `json:"params,omitempty"`
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  *ErrorMsg       `json:"error,omitempty"`
+// Request is a JSON-RPC 2.0 request sent to the server.
+type Request struct {
+	JSONRPC string `json:"jsonrpc"`
+	ID      int64  `json:"id"`
+	Method  string `json:"method"`
+	Params  []any  `json:"params,omitempty"`
 }
 
-func (m *Message) Unmarshal(v any) error {
-	if err := json.Unmarshal(m.Result, v); err != nil {
-		return fmt.Errorf("unmarshal result: %s: %w", string(m.Result), err)
+// Response is a JSON-RPC 2.0 response or notification from the server.
+type Response struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      *int64          `json:"id,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *RPCError       `json:"error,omitempty"`
+	Method  string          `json:"method,omitempty"` // Notifications only.
+	Params  json.RawMessage `json:"params,omitempty"` // Notifications only.
+}
+
+// Unmarshal decodes the response result into v.
+func (r *Response) Unmarshal(v any) error {
+	if err := json.Unmarshal(r.Result, v); err != nil {
+		return fmt.Errorf("unmarshal result: %s: %w", string(r.Result), err)
 	}
 	return nil
 }
 
-type ErrorMsg struct {
-	Message string `json:"message,omitempty"`
-	Code    int    `json:"error,omitempty"`
-	Reason  string `json:"reason,omitempty"`
-	Type    string `json:"errorType,omitempty"`
+// RPCError is a JSON-RPC 2.0 error object.
+type RPCError struct {
+	Code    int           `json:"code"`
+	Message string        `json:"message"`
+	Data    *RPCErrorData `json:"data,omitempty"`
 }
 
-func (e *ErrorMsg) Error() string {
+// RPCErrorData contains TrueNAS-specific error details nested within the JSON-RPC error.
+type RPCErrorData struct {
+	Error       int            `json:"error"`
+	ErrName     string         `json:"errname"`
+	Reason      string         `json:"reason"`
+	Trace       *RPCErrorTrace `json:"trace,omitempty"`
+	Extra       []any          `json:"extra,omitempty"`
+	PyException string         `json:"py_exception,omitempty"`
+}
+
+// RPCErrorTrace contains Python traceback information from TrueNAS.
+type RPCErrorTrace struct {
+	Class     string `json:"class"`
+	Frames    []any  `json:"frames"`
+	Formatted string `json:"formatted"`
+	Repr      string `json:"repr"`
+}
+
+func (e *RPCError) Error() string {
 	var parts []string
-	if e.Code > 0 {
+	if e.Code != 0 {
 		parts = append(parts, fmt.Sprintf("code: %d", e.Code))
 	}
 	if e.Message != "" {
 		parts = append(parts, fmt.Sprintf("message: %s", e.Message))
 	}
-	if e.Reason != "" {
-		parts = append(parts, fmt.Sprintf("reason: %s", e.Reason))
-	}
-	if e.Type != "" {
-		parts = append(parts, fmt.Sprintf("type: %s", e.Type))
+	if e.Data != nil {
+		if e.Data.Reason != "" {
+			parts = append(parts, fmt.Sprintf("reason: %s", e.Data.Reason))
+		}
+		if e.Data.ErrName != "" {
+			parts = append(parts, fmt.Sprintf("errname: %s", e.Data.ErrName))
+		}
 	}
 	if len(parts) == 0 {
 		return "TrueNAS API error"

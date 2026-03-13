@@ -97,9 +97,9 @@ func TestBootClient_GetDisks(t *testing.T) {
 
 			if tt.expectedError {
 				assert.Error(t, err)
-				var apiErr *ErrorMsg
+				var apiErr *RPCError
 				assert.ErrorAs(t, err, &apiErr)
-				assert.Equal(t, tt.errorCode, apiErr.Code)
+				assert.Equal(t, tt.errorCode, apiErr.Data.Error)
 				assert.Equal(t, tt.errorMessage, apiErr.Message)
 				assert.Nil(t, disks)
 			} else {
@@ -221,9 +221,9 @@ func TestBootClient_GetState(t *testing.T) {
 
 			if tt.expectedError {
 				assert.Error(t, err)
-				var apiErr *ErrorMsg
+				var apiErr *RPCError
 				assert.ErrorAs(t, err, &apiErr)
-				assert.Equal(t, tt.errorCode, apiErr.Code)
+				assert.Equal(t, tt.errorCode, apiErr.Data.Error)
 				assert.Equal(t, tt.errorMessage, apiErr.Message)
 				// Note: GetState returns a pointer to an empty struct on error, not nil
 				assert.NotNil(t, state)
@@ -360,9 +360,9 @@ func TestBootClient_Detach(t *testing.T) {
 
 			if tt.expectedError {
 				assert.Error(t, err)
-				var apiErr *ErrorMsg
+				var apiErr *RPCError
 				assert.ErrorAs(t, err, &apiErr)
-				assert.Equal(t, tt.errorCode, apiErr.Code)
+				assert.Equal(t, tt.errorCode, apiErr.Data.Error)
 				assert.Equal(t, tt.errorMessage, apiErr.Message)
 			} else {
 				assert.NoError(t, err)
@@ -430,9 +430,9 @@ func TestBootClient_Replace(t *testing.T) {
 
 			if tt.expectedError {
 				assert.Error(t, err)
-				var apiErr *ErrorMsg
+				var apiErr *RPCError
 				assert.ErrorAs(t, err, &apiErr)
-				assert.Equal(t, tt.errorCode, apiErr.Code)
+				assert.Equal(t, tt.errorCode, apiErr.Data.Error)
 				assert.Equal(t, tt.errorMessage, apiErr.Message)
 			} else {
 				assert.NoError(t, err)
@@ -545,9 +545,9 @@ func TestBootClient_GetScrubInterval(t *testing.T) {
 
 			if tt.expectedError {
 				assert.Error(t, err)
-				var apiErr *ErrorMsg
+				var apiErr *RPCError
 				assert.ErrorAs(t, err, &apiErr)
-				assert.Equal(t, tt.errorCode, apiErr.Code)
+				assert.Equal(t, tt.errorCode, apiErr.Data.Error)
 				assert.Equal(t, tt.errorMessage, apiErr.Message)
 				assert.Equal(t, 0, interval) // Default value for error case
 			} else {
@@ -622,9 +622,9 @@ func TestBootClient_SetScrubInterval(t *testing.T) {
 
 			if tt.expectedError {
 				assert.Error(t, err)
-				var apiErr *ErrorMsg
+				var apiErr *RPCError
 				assert.ErrorAs(t, err, &apiErr)
-				assert.Equal(t, tt.errorCode, apiErr.Code)
+				assert.Equal(t, tt.errorCode, apiErr.Data.Error)
 				assert.Equal(t, tt.errorMessage, apiErr.Message)
 			} else {
 				assert.NoError(t, err)

@@ -229,8 +229,8 @@ func TestAuthClient_ErrorHandling(t *testing.T) {
 	_, err := client.Auth.Login(ctx, "baduser", "badpass")
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 401, apiErr.Code)
+	assert.Equal(t, 401, apiErr.Data.Error)
 	assert.Equal(t, "Authentication failed", apiErr.Message)
 }

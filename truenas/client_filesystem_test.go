@@ -120,9 +120,9 @@ func TestFilesystemClient_Stat_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, stat)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Path not found", apiErr.Message)
 }
 
@@ -175,9 +175,9 @@ func TestFilesystemClient_Statfs_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, statfs)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Filesystem unavailable", apiErr.Message)
 }
 
@@ -291,9 +291,9 @@ func TestFilesystemClient_ListDir_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, entries)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 403, apiErr.Code)
+	assert.Equal(t, 403, apiErr.Data.Error)
 	assert.Equal(t, "Permission denied", apiErr.Message)
 }
 
@@ -404,9 +404,9 @@ func TestFilesystemClient_GetACL_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, acl)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Path not found", apiErr.Message)
 }
 
@@ -568,9 +568,9 @@ func TestFilesystemClient_IsACLTrivial_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, result)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 }
 
 func TestFilesystemClient_GetDefaultACL(t *testing.T) {
@@ -683,9 +683,9 @@ func TestFilesystemClient_GetDefaultACL_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, acl)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 400, apiErr.Code)
+	assert.Equal(t, 400, apiErr.Data.Error)
 	assert.Equal(t, "Invalid ACL type", apiErr.Message)
 }
 
@@ -731,9 +731,9 @@ func TestFilesystemClient_GetDefaultACLChoices_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, choices)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 }
 
 func TestFilesystemClient_SetPermissions(t *testing.T) {

@@ -451,8 +451,8 @@ func TestDiskClient_ErrorHandling(t *testing.T) {
 	_, err := client.Disk.List(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Disk service unavailable", apiErr.Message)
 }

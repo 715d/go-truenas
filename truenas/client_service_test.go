@@ -396,8 +396,8 @@ func TestServiceClient_ErrorHandling(t *testing.T) {
 	_, err := client.Service.List(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Service not found", apiErr.Message)
 }

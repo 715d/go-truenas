@@ -617,9 +617,9 @@ func TestCertificateClient_List_Error(t *testing.T) {
 	_, err := client.Certificate.List(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Certificate service unavailable", apiErr.Message)
 }
 
@@ -637,9 +637,9 @@ func TestCertificateClient_Get_Error(t *testing.T) {
 	_, err := client.Certificate.Get(ctx, 999)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Certificate not found", apiErr.Message)
 }
 
@@ -714,9 +714,9 @@ func TestCertificateClient_GetChoices_Error(t *testing.T) {
 	_, err := client.Certificate.GetCountryChoices(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 503, apiErr.Code)
+	assert.Equal(t, 503, apiErr.Data.Error)
 	assert.Equal(t, "Service temporarily unavailable", apiErr.Message)
 }
 

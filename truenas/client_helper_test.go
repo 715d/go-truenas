@@ -3,7 +3,6 @@ package truenas
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -34,7 +33,7 @@ func WithAuthSuccess(success bool) TestServerOption {
 }
 
 // WithCustomHandler sets a custom message handler for the server
-func WithCustomHandler(handler func(Message) (Message, bool)) TestServerOption {
+func WithCustomHandler(handler func(Request) (Response, bool)) TestServerOption {
 	return func(ts *TestServer) {
 		ts.customHandler = handler
 	}
@@ -51,7 +50,7 @@ func WithDebug(debug bool) TestServerOption {
 type TestServer struct {
 	*httptest.Server
 	responses map[string]any
-	errors    map[string]*ErrorMsg
+	errors    map[string]*RPCError
 	nextJobID int // Auto-incrementing job ID counter
 
 	// Connection tracking
@@ -60,7 +59,7 @@ type TestServer struct {
 	trackConnections bool
 
 	// Behavior configuration
-	customHandler func(Message) (Message, bool)
+	customHandler func(Request) (Response, bool)
 	authSuccess   bool
 	debug         bool
 }
@@ -69,7 +68,7 @@ type TestServer struct {
 func NewTestServer(t *testing.T, opts ...TestServerOption) *TestServer {
 	ts := &TestServer{
 		responses:   make(map[string]any),
-		errors:      make(map[string]*ErrorMsg),
+		errors:      make(map[string]*RPCError),
 		nextJobID:   100,  // Start at 100 to avoid conflicts
 		authSuccess: true, // Default to successful auth
 	}
@@ -99,60 +98,46 @@ func NewTestServer(t *testing.T, opts ...TestServerOption) *TestServer {
 			conn.Close()
 		}()
 
-		// Handle initial connection handshake
-		var connectMsg map[string]any
-		err = conn.ReadJSON(&connectMsg)
-		if err != nil {
-			return
-		}
-
-		// Send connected response
-		err = conn.WriteJSON(map[string]any{
-			"msg":     "connected",
-			"session": "test-session-" + fmt.Sprintf("%d", time.Now().UnixNano()),
-		})
-		if err != nil {
-			return
-		}
-
 		for {
-			var msg Message
-			err := conn.ReadJSON(&msg)
+			var req Request
+			err := conn.ReadJSON(&req)
 			if err != nil {
 				break
 			}
 
 			// Use custom handler if provided
 			if ts.customHandler != nil {
-				response, shouldSend := ts.customHandler(msg)
+				response, shouldSend := ts.customHandler(req)
 				if shouldSend {
 					_ = conn.WriteJSON(response)
 				}
 				continue
 			}
 
-			response := Message{
-				ID: msg.ID,
+			response := Response{
+				JSONRPC: "2.0",
+				ID:      &req.ID,
 			}
 
 			// Check for error responses first
-			if errResp, hasError := ts.errors[msg.Method]; hasError {
+			if errResp, hasError := ts.errors[req.Method]; hasError {
 				response.Error = errResp
-			} else if msg.Method == "auth.login" || msg.Method == "auth.login_with_api_key" {
+			} else if req.Method == "auth.login" || req.Method == "auth.login_with_api_key" {
 				if ts.authSuccess {
 					response.Result = json.RawMessage(`true`)
 				} else {
-					response.Error = &ErrorMsg{
-						Code:    401,
+					response.Error = &RPCError{
+						Code:    -32001,
 						Message: "Authentication failed",
+						Data:    &RPCErrorData{Error: 401, Reason: "Authentication failed"},
 					}
 				}
-			} else if mockResp, hasResponse := ts.responses[msg.Method]; hasResponse {
+			} else if mockResp, hasResponse := ts.responses[req.Method]; hasResponse {
 				result, _ := json.Marshal(mockResp)
 				response.Result = json.RawMessage(result)
 			} else {
 				// Provide default responses for common methods
-				switch msg.Method {
+				switch req.Method {
 				case "system.info":
 					defaultSystemInfo := map[string]any{
 						"hostname": "test-truenas",
@@ -192,15 +177,16 @@ func (ts *TestServer) SetResponse(method string, response any) {
 
 // SetError sets a mock error response for a specific method
 func (ts *TestServer) SetError(method string, code int, message string) {
-	ts.errors[method] = &ErrorMsg{
-		Code:    code,
+	ts.errors[method] = &RPCError{
+		Code:    -32001,
 		Message: message,
+		Data:    &RPCErrorData{Error: code, Reason: message},
 	}
 }
 
 // GetWebSocketURL returns the WebSocket URL for this test server
 func (ts *TestServer) GetWebSocketURL() string {
-	return strings.Replace(ts.URL, "http://", "ws://", 1) + "/websocket"
+	return strings.Replace(ts.URL, "http://", "ws://", 1) + "/api/current"
 }
 
 // CreateTestClient creates a test client connected to this server

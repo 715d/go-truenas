@@ -91,9 +91,9 @@ func TestAPIKeyClient_List_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, keys)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Internal server error", apiErr.Message)
 }
 
@@ -192,9 +192,9 @@ func TestAPIKeyClient_Get_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, key)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 403, apiErr.Code)
+	assert.Equal(t, 403, apiErr.Data.Error)
 	assert.Equal(t, "Permission denied", apiErr.Message)
 }
 
@@ -287,9 +287,9 @@ func TestAPIKeyClient_Create_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.NotNil(t, key) // API returns empty struct even on error
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 400, apiErr.Code)
+	assert.Equal(t, 400, apiErr.Data.Error)
 	assert.Equal(t, "Invalid API key name", apiErr.Message)
 }
 
@@ -426,9 +426,9 @@ func TestAPIKeyClient_Update_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.NotNil(t, key) // API returns empty struct even on error
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "API key not found", apiErr.Message)
 }
 
@@ -520,9 +520,9 @@ func TestAPIKeyClient_UpdateName_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.NotNil(t, key) // API returns empty struct even on error
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 403, apiErr.Code)
+	assert.Equal(t, 403, apiErr.Data.Error)
 	assert.Equal(t, "Permission denied", apiErr.Message)
 }
 
@@ -603,9 +603,9 @@ func TestAPIKeyClient_Reset_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.NotNil(t, key) // API returns empty struct even on error
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Failed to reset API key", apiErr.Message)
 }
 
@@ -697,9 +697,9 @@ func TestAPIKeyClient_Delete_Error(t *testing.T) {
 			err := client.APIKey.Delete(ctx, 1)
 			require.Error(t, err)
 
-			var apiErr *ErrorMsg
+			var apiErr *RPCError
 			assert.ErrorAs(t, err, &apiErr)
-			assert.Equal(t, tt.errorCode, apiErr.Code)
+			assert.Equal(t, tt.errorCode, apiErr.Data.Error)
 			assert.Equal(t, tt.errorMsg, apiErr.Message)
 		})
 	}

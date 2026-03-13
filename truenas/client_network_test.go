@@ -781,9 +781,9 @@ func TestNetworkClient_ListInterfaces_Error(t *testing.T) {
 	_, err := client.Network.ListInterfaces(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Network service unavailable", apiErr.Message)
 }
 
@@ -807,9 +807,9 @@ func TestNetworkClient_CreateInterface_Error(t *testing.T) {
 	_, err := client.Network.CreateInterface(ctx, req)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 400, apiErr.Code)
+	assert.Equal(t, 400, apiErr.Data.Error)
 	assert.Equal(t, "Invalid interface configuration", apiErr.Message)
 }
 
@@ -827,9 +827,9 @@ func TestNetworkClient_GetConfiguration_Error(t *testing.T) {
 	_, err := client.Network.GetConfiguration(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 403, apiErr.Code)
+	assert.Equal(t, 403, apiErr.Data.Error)
 	assert.Equal(t, "Access denied", apiErr.Message)
 }
 
@@ -853,9 +853,9 @@ func TestNetworkClient_CreateStaticRoute_Error(t *testing.T) {
 	_, err := client.Network.CreateStaticRoute(ctx, req)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 422, apiErr.Code)
+	assert.Equal(t, 422, apiErr.Data.Error)
 	assert.Equal(t, "Invalid route destination", apiErr.Message)
 }
 

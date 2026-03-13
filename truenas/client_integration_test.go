@@ -19,15 +19,10 @@ func TestClientWithVM(t *testing.T) {
 	}
 
 	testvm.RunWithVM(t, func(helper *testvm.Manager) {
-		// Get connection info and create client
+		// Create client with retries — the WebSocket API may not be ready
+		// immediately after the HTTP endpoint starts responding.
 		connInfo := helper.GetConnectionInfo()
-		client, err := NewClient(connInfo.WebSocketURL, Options{
-			Username: connInfo.Username,
-			Password: connInfo.Password,
-			// Set this to true to log websocket requests and responses for debugging.
-			Debug: true,
-		})
-		require.NoError(t, err)
+		client := createClientWithRetry(t, connInfo)
 		defer client.Close()
 
 		// Wait for system to be ready
@@ -222,7 +217,7 @@ func testAPIErrorHandling(t *testing.T, client *Client) {
 		err := client.Call(ctx, "nonexistent.method", nil, &result)
 		assert.Error(t, err)
 
-		var apiErr *ErrorMsg
+		var apiErr *RPCError
 		assert.ErrorAs(t, err, &apiErr)
 		// Note: TrueNAS returns error with code 0 and empty message for unknown methods
 	})
@@ -310,6 +305,28 @@ func deleteTestUser(ctx context.Context, client *Client, username string) error 
 		return err
 	}
 	return client.User.Delete(ctx, user.ID, nil)
+}
+
+// createClientWithRetry attempts to connect and authenticate to TrueNAS with retries.
+// After the HTTP endpoint is available, the WebSocket API may need additional time to
+// become fully ready, so we retry connection attempts.
+func createClientWithRetry(t *testing.T, connInfo testvm.ConnectionInfo) *Client {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Minute)
+	for time.Now().Before(deadline) {
+		client, err := NewClient(connInfo.WebSocketURL, Options{
+			Username: connInfo.Username,
+			Password: connInfo.Password,
+			Debug:    true,
+		})
+		if err == nil {
+			return client
+		}
+		t.Logf("Client connection attempt failed (will retry): %v", err)
+		time.Sleep(10 * time.Second)
+	}
+	t.Fatal("could not connect to TrueNAS WebSocket API within 3 minutes")
+	return nil
 }
 
 // waitForSystemReady waits for the TrueNAS system to become ready by polling system.info

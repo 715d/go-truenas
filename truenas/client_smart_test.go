@@ -49,9 +49,9 @@ func TestSmartClient_GetConfig_Error(t *testing.T) {
 	_, err := client.Smart.GetConfig(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Unable to retrieve SMART configuration", apiErr.Message)
 }
 
@@ -110,9 +110,9 @@ func TestSmartClient_UpdateConfig_Error(t *testing.T) {
 	_, err := client.Smart.UpdateConfig(ctx, config)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 400, apiErr.Code)
+	assert.Equal(t, 400, apiErr.Data.Error)
 	assert.Equal(t, "Invalid SMART configuration", apiErr.Message)
 }
 
@@ -252,9 +252,9 @@ func TestSmartClient_GetTest_Error(t *testing.T) {
 	_, err := client.Smart.GetTest(ctx, 1)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Test not found", apiErr.Message)
 }
 
@@ -330,9 +330,9 @@ func TestSmartClient_CreateTest_Error(t *testing.T) {
 	_, err := client.Smart.CreateTest(ctx, req)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 400, apiErr.Code)
+	assert.Equal(t, 400, apiErr.Data.Error)
 	assert.Equal(t, "Invalid test configuration", apiErr.Message)
 }
 
@@ -404,9 +404,9 @@ func TestSmartClient_UpdateTest_Error(t *testing.T) {
 	_, err := client.Smart.UpdateTest(ctx, 999, req)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Test not found", apiErr.Message)
 }
 
@@ -439,9 +439,9 @@ func TestSmartClient_DeleteTest_Error(t *testing.T) {
 	err := client.Smart.DeleteTest(ctx, 999)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Test not found", apiErr.Message)
 }
 
@@ -507,9 +507,9 @@ func TestSmartClient_GetDiskChoices_Error(t *testing.T) {
 	_, err := client.Smart.GetDiskChoices(ctx, false)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Unable to retrieve disk choices", apiErr.Message)
 }
 
@@ -582,9 +582,9 @@ func TestSmartClient_RunManualTest_Error(t *testing.T) {
 	err := client.Smart.RunManualTest(ctx, tests)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 400, apiErr.Code)
+	assert.Equal(t, 400, apiErr.Data.Error)
 	assert.Equal(t, "Invalid test parameters", apiErr.Message)
 }
 
@@ -660,9 +660,9 @@ func TestSmartClient_GetAllTestResults_Error(t *testing.T) {
 	_, err := client.Smart.GetAllTestResults(ctx)
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 500, apiErr.Code)
+	assert.Equal(t, 500, apiErr.Data.Error)
 	assert.Equal(t, "Unable to retrieve test results", apiErr.Message)
 }
 
@@ -715,9 +715,9 @@ func TestSmartClient_GetDiskTestResults_Error(t *testing.T) {
 	_, err := client.Smart.GetDiskTestResults(ctx, "nonexistent")
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Disk not found", apiErr.Message)
 }
 
@@ -810,9 +810,9 @@ func TestSmartClient_GetDiskAttributes_Error(t *testing.T) {
 	_, err := client.Smart.GetDiskAttributes(ctx, "nonexistent")
 	require.Error(t, err)
 
-	var apiErr *ErrorMsg
+	var apiErr *RPCError
 	assert.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, 404, apiErr.Code)
+	assert.Equal(t, 404, apiErr.Data.Error)
 	assert.Equal(t, "Disk not found", apiErr.Message)
 }
 

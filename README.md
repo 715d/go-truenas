@@ -9,7 +9,7 @@ A Go client library for interacting with the TrueNAS WebSocket API.
 
 _**Disclaimer**_: Much of this code was generated from the API documentation. There may be cases where the API behavior does not match the spec. A subset of methods are fully tested with a live TrueNAS instance as part of an integration test suite. See [Contributing](#Contributing) to help increase this coverage. Any workflows using this library should _always_ be tested with a throwaway TrueNAS instance before connecting to one with important data.
 
-Currently tested against `TrueNAS-SCALE-25.04.1`.
+Currently tested against `TrueNAS-SCALE-25.10.2`.
 
 ## Installation
 
@@ -36,7 +36,7 @@ import (
 
 func main() {
     // Connect with username/password
-    client, err := truenas.NewClient("ws://your-truenas-host/websocket", truenas.Options{
+    client, err := truenas.NewClient("ws://your-truenas-host/api/current", truenas.Options{
         Username: "your-username",
         Password: "your-password",
     })
@@ -69,13 +69,13 @@ func main() {
 
 ```go
 // Username and password
-client, err := truenas.NewClient("wss://truenas.local/websocket", truenas.Options{
+client, err := truenas.NewClient("wss://truenas.local/api/current", truenas.Options{
     Username: "admin",
     Password: "your-password",
 })
 
 // API key authentication (recommended for scripts)
-client, err := truenas.NewClient("wss://truenas.local/websocket", truenas.Options{
+client, err := truenas.NewClient("wss://truenas.local/api/current", truenas.Options{
     APIKey: "your-api-key-token",
 })
 ```
@@ -177,8 +177,7 @@ The project uses Git LFS to store the TrueNAS VM image (`truenas/truenas.qcow2`)
 ### Testing Strategy
 
 - **Unit Tests:** Fast tests that don't require external dependencies (`make test-unit`)
-- **Integration Tests:** Tests against live TrueNAS instances (`make test-integration`)
-- **VM Tests:** Automated tests using QEMU-based TrueNAS VMs (`make test-vm`)
+- **VM Tests:** Integration tests against a QEMU-based TrueNAS VM (`make test-vm`)
 
 Always run `make check` before submitting pull requests. For major changes, also run `make check-full` to ensure VM-based tests pass.
 
@@ -201,11 +200,10 @@ As new versions of TrueNAS Scale are released, we may need to update the QCOW2 i
 5. Configure the GRUB loader to have no wait and to default to booting TrueNAS immediately.
 
     ```sh
-    sudo nano /etc/default/grub.d/zz-custom.cfg
-    # GRUB_TIMEOUT=0
-    # GRUB_DEFAULT=0
-    sudo upgrade-grub
-    reboot
+    mount -o remount,rw /
+    echo 'GRUB_TIMEOUT=0' > /etc/default/grub.d/zz-custom.cfg
+    echo 'GRUB_DEFAULT=0' >> /etc/default/grub.d/zz-custom.cfg
+    update-grub
     ```
 6. Shutdown the VM.
 7. Split the image for Git LFS compatibility:
@@ -240,7 +238,7 @@ This repository includes a TrueNAS SCALE virtual machine image (`truenas/truenas
 
 **TrueNAS SCALE Attribution:**
 - TrueNAS SCALE is developed by iXsystems, Inc.
-- Version: TrueNAS-SCALE-23.10.2 (approximate)
+- Version: TrueNAS-SCALE-25.10.2 (approximate)
 - Website: https://www.truenas.com/
 - License: Mixed licensing (BSD-3-Clause for middleware/GUI, GPL for kernel components)
 - Copyright: © iXsystems, Inc.
