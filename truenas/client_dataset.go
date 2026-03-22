@@ -76,17 +76,17 @@ func NewDatasetClient(client *Client) *DatasetClient {
 
 // Dataset represents a ZFS dataset
 type Dataset struct {
-	ID             string            `json:"id"`
-	Type           DatasetType       `json:"type"`
-	Name           string            `json:"name"`
-	Pool           string            `json:"pool"`
-	Encrypted      bool              `json:"encrypted"`
-	EncryptionRoot string            `json:"encryption_root"`
-	KeyLoaded      bool              `json:"key_loaded"`
-	Children       []Dataset         `json:"children"`
-	Mountpoint     any               `json:"mountpoint"`
-	Locked         bool              `json:"locked"`
-	UserProperties map[string]string `json:"user_properties"`
+	ID             string                      `json:"id"`
+	Type           DatasetType                 `json:"type"`
+	Name           string                      `json:"name"`
+	Pool           string                      `json:"pool"`
+	Encrypted      bool                        `json:"encrypted"`
+	EncryptionRoot string                      `json:"encryption_root"`
+	KeyLoaded      bool                        `json:"key_loaded"`
+	Children       []Dataset                   `json:"children"`
+	Mountpoint     any                         `json:"mountpoint"`
+	Locked         bool                        `json:"locked"`
+	UserProperties map[string]*DatasetProperty `json:"user_properties"`
 
 	// ZFS Properties
 	ManagedBy             *DatasetProperty `json:"managedby,omitempty"`
